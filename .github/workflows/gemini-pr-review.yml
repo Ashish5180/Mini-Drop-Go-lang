@@ -14,22 +14,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 🔹 1. Checkout FULL history (CRITICAL FIX)
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # 🔹 2. Build PR diff (reliable & exact)
       - name: Build PR diff
         run: |
-          git fetch origin ${{ github.base_ref }}
-          git diff origin/${{ github.base_ref }} > pr.diff
+          git diff ${{ github.event.pull_request.base.sha }} > pr.diff
 
-      # 🔍 Guard: stop if diff is empty
+      # 🔹 3. Debug diff (visible in logs)
+      - name: Debug PR diff
+        run: |
+          echo "===== PR DIFF START ====="
+          cat pr.diff
+          echo "===== PR DIFF END ====="
+
+      # 🔹 4. Guard: Skip Gemini if diff is empty
       - name: Check diff size
         run: |
           if [ ! -s pr.diff ]; then
-            echo '{"result":"No meaningful diff to review."}' > review.json
+            echo '{"result":"No meaningful code or configuration changes detected in this PR."}' > review.json
             exit 0
           fi
 
+      # 🔹 5. Gemini API call (strong prompt)
       - name: Gemini Code Review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -41,17 +52,20 @@ jobs:
             -d '{
               "contents": [{
                 "parts": [{
-                  "text": "You are a senior software engineer and DevOps reviewer.\n\nReview the following GitHub Pull Request diff.\n\nInstructions:\n- If code changes exist, review for bugs, edge cases, performance, and readability.\n- If CI/CD or configuration files exist, review for security, permissions, best practices, and maintainability.\n- Always provide at least 3 bullet points of feedback.\n- Be concise, clear, and actionable.\n\nPR Diff:\n\n'"$(cat pr.diff)"'"
+                  "text": "You are a senior software engineer and DevOps reviewer.\n\nReview the following GitHub Pull Request diff.\n\nInstructions:\n- Review code for bugs, edge cases, performance, and readability.\n- Review CI/CD or configuration changes for security, permissions, and best practices.\n- Always provide at least 3 concise bullet points of feedback.\n- Be clear, actionable, and professional.\n\nPull Request Diff:\n\n'"$(cat pr.diff)"'"
                 }]
               }]
             }')
 
           echo "$RESPONSE" > review.json
 
-      # 🧪 Optional but recommended for debugging
+      # 🔹 6. Debug Gemini response (always visible)
       - name: Debug Gemini response
-        run: cat review.json
+        run: |
+          echo "===== GEMINI RESPONSE ====="
+          cat review.json
 
+      # 🔹 7. Post comment on PR
       - name: Post review comment
         uses: actions/github-script@v7
         with:
@@ -62,10 +76,10 @@ jobs:
             try {
               const review = JSON.parse(fs.readFileSync("review.json", "utf8"));
               body =
-                review?.candidates?.[0]?.content?.parts?.[0]?.text
-                || review?.result
-                || body;
-            } catch (e) {
+                review?.candidates?.[0]?.content?.parts?.[0]?.text ||
+                review?.result ||
+                body;
+            } catch (err) {
               body = "Failed to parse Gemini response.";
             }
 

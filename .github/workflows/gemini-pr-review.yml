@@ -16,38 +16,28 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
-    # Required permissions to read code and post comments
     permissions:
       contents: read
       pull-requests: write
-
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Gemini AI PR Review
+      - name: Gemini PR Review
         uses: google/generative-ai-docs/actions/gemini-review@main
         with:
-          # Use the secret you created in the previous step
           gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          model: gemini-2.0-flash
+          model: gemini-2.0-flash # High speed and intelligence balance
           review-level: detailed
-          # Custom Instructions to match your "Senior Engineer" requirement
+          # These instructions tell Gemini to act exactly like your Cursor prompt
           custom-instructions: |
-            Act as a Senior Software Engineer. Your goal is to review the PR diff and provide actionable feedback.
-            
-            Objectives:
-            1. Review the current PR diff for logic errors, security flaws, and performance issues.
-            2. Leave short, concise inline comments (1-2 sentences) on changed lines.
-            3. Use emojis for categorization: 🚨 Critical, 🔒 Security, ⚡ Performance, ⚠️ Logic, ✨ Improvement.
-            4. Include a brief code example of the fix within your comment if applicable.
-            5. Provide a short summary of the overall code quality at the end.
-            
-            Rules:
-            - Focus only on the changed lines.
-            - Be specific and actionable.
-            - Maintain a professional, helpful tone.
-            - Do not approve or request changes; only leave a review comment.
+            Act like a Senior Software Engineer.
+            1. Leave short inline comments (1-2 sentences) on changed lines only.
+            2. Categorize feedback with emojis: 🚨 Critical, 🔒 Security, ⚡ Performance, ⚠️ Logic, ✨ Improvement.
+            3. Provide a brief code example for any suggested fix.
+            4. Provide a high-level summary of the code quality at the end.
+            5. Be specific and actionable; avoid generic praise.

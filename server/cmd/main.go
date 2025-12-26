@@ -12,6 +12,8 @@ import (
 	"mini-dropbox/internals/node"
 )
 
+const shutdownTimeout = 5 * time.Second
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -53,7 +55,7 @@ func main() {
 	select {
 	case <-done:
 		fmt.Println("Shutdown complete")
-	case <-time.After(5 * time.Second):
+	case <-time.After(shutdownTimeout):
 		fmt.Println("Shutdown timeout reached")
 	}
 }

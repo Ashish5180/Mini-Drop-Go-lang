@@ -1,9 +1,5 @@
 #!/bin/bash
-
-# Test script for Mini-Dropbox file retrieval
-# This script tests the file retrieval functionality
-
-set -e  # Exit on error
+set -euo pipefail  # Better error handling
 
 echo "🔍 Testing Mini-Dropbox File Retrieval"
 echo "====================================="

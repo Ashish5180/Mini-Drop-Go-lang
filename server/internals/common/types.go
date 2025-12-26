@@ -2,6 +2,11 @@ package common
 
 import "errors"
 
+const (
+	// Hash format constants
+	MD5HashLength = 32
+)
+
 var (
 	// Pre-computed errors for zero-allocation error returns
 	ErrHashRequired = errors.New("hash is required")
@@ -21,7 +26,7 @@ func (f *FileInfo) Validate() error {
 	if f.Hash == "" {
 		return ErrHashRequired
 	}
-	if len(f.Hash) != 32 {
+	if len(f.Hash) != MD5HashLength {
 		return ErrHashInvalid
 	}
 	if f.Size <= 0 {

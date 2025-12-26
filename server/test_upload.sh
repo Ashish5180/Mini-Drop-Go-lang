@@ -6,7 +6,14 @@
 set -e  # Exit on error
 
 echo "🚀 Testing Mini-Dropbox File Upload"
+#!/bin/bash
+set -euo pipefail  # Fail fast with better error handling
+
+echo "🚀 Testing Mini-Dropbox File Upload"
 echo "=================================="
+
+# Function to get timestamp in ms
+get_ms() { date +%s%3N 2>/dev/null || echo $(($(date +%s) * 1000)); }
 
 # Create test file
 echo "Creating test file..."
@@ -17,20 +24,20 @@ echo "Test file created: test_file.txt"
 # Test upload to Node 8001
 echo ""
 echo "📤 Testing upload to Node 8001..."
-start=$(date +%s)
-curl -w "\n" -X POST -F "file=@test_file.txt" http://localhost:8001/upload
-end=$(date +%s)
-echo "⏱️  Upload time: $((end-start))s"
+start=$(get_ms)
+curl -w "\n" -s -X POST -F "file=@test_file.txt" http://localhost:8001/upload
+end=$(get_ms)
+echo "⏱️  Upload time: $((end-start))ms"
 
 echo ""
 echo ""
 
 # Test upload to Node 8002
 echo "📤 Testing upload to Node 8002..."
-start=$(date +%s)
-curl -w "\n" -X POST -F "file=@test_file.txt" http://localhost:8002/upload
-end=$(date +%s)
-echo "⏱️  Upload time: $((end-start))s"
+start=$(get_ms)
+curl -w "\n" -s -X POST -F "file=@test_file.txt" http://localhost:8002/upload
+end=$(get_ms)
+echo "⏱️  Upload time: $((end-start))ms"
 
 echo ""
 echo ""

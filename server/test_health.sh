@@ -1,7 +1,5 @@
 #!/bin/bash
-
-# Test script for Mini-Dropbox Health Checks
-# This script tests the health endpoints of all nodes
+set -euo pipefail  # Better error handling
 
 echo "🏥 Testing Mini-Dropbox Health Checks"
 echo "===================================="

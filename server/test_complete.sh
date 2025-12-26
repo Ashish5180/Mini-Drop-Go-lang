@@ -19,30 +19,30 @@ echo ""
 
 # Test 1: Health Checks
 echo "🏥 Running Health Checks..."
-start=$(date +%s)
+start=$(get_ms)
 ./test_health.sh
-end=$(date +%s)
-echo "⏱️  Health check duration: $((end-start))s"
+end=$(get_ms)
+echo "⏱️  Health check duration: $((end-start))ms"
 echo ""
 echo "----------------------------------------"
 echo ""
 
 # Test 2: Master Node API
 echo "🎯 Testing Master Node API..."
-start=$(date +%s)
+start=$(get_ms)
 ./test_master.sh
-end=$(date +%s)
-echo "⏱️  Master API test duration: $((end-start))s"
+end=$(get_ms)
+echo "⏱️  Master API test duration: $((end-start))ms"
 echo ""
 echo "----------------------------------------"
 echo ""
 
 # Test 3: File Upload
 echo "📤 Testing File Upload..."
-start=$(date +%s)
+start=$(get_ms)
 ./test_upload.sh
-end=$(date +%s)
-echo "⏱️  Upload test duration: $((end-start))s"
+end=$(get_ms)
+echo "⏱️  Upload test duration: $((end-start))ms"
 echo ""
 echo "----------------------------------------"
 echo ""
@@ -53,12 +53,12 @@ echo "Note: You'll need to manually provide the hash from upload response"
 echo "Example: ./test_retrieve.sh <hash_from_upload>"
 echo ""
 
-END_TIME=$(date +%s)
+END_TIME=$(get_ms)
 TOTAL_TIME=$((END_TIME-START_TIME))
 
 echo "✅ Complete testing suite finished!"
 echo ""
-echo "⏱️  Total execution time: ${TOTAL_TIME}s"
+echo "⏱️  Total execution time: ${TOTAL_TIME}ms"
 echo ""
 echo "📋 Test Summary:"
 echo "- ✅ Health checks: All nodes responding"

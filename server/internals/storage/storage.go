@@ -9,11 +9,17 @@ import (
 	"sync"
 )
 
+const (
+	// Buffer and cache sizes
+	defaultBufferSize = 32 * 1024 // 32KB
+	defaultCacheSize  = 100
+)
+
 var (
 	// Buffer pool for efficient memory reuse
 	bufferPool = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 32*1024) // 32KB buffers
+			return make([]byte, defaultBufferSize)
 		},
 	}
 	// Hash pool for MD5 computation reuse
@@ -40,7 +46,7 @@ func NewFileStorage(dir string) *FileStorage {
 	os.MkdirAll(dir, 0755)
 	return &FileStorage{
 		StorageDir: dir,
-		cache:      make(map[string]bool, 100), // Pre-allocate cache
+		cache:      make(map[string]bool, defaultCacheSize),
 	}
 }
 

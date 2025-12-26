@@ -1,9 +1,5 @@
 #!/bin/bash
-
-# Test script for Mini-Dropbox Master Node
-# This script tests the master node API endpoints
-
-set -e  # Exit on error
+set -euo pipefail  # Better error handling
 
 echo "🎯 Testing Mini-Dropbox Master Node"
 echo "=================================="
@@ -15,7 +11,7 @@ echo ""
 
 # Test 1: List all files (should be empty initially)
 echo "📋 Test 1: Listing all files (should be empty initially)..."
-curl -s -w "\n" -X GET "$MASTER_URL/list" | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X GET "$MASTER_URL/list"
+curl -s -w "\n" --compressed -X GET "$MASTER_URL/list" | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X GET "$MASTER_URL/list"
 echo ""
 echo ""
 

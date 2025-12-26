@@ -54,7 +54,6 @@ func (n *Node) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse with memory limit
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		http.Error(w, "Failed to parse form", http.StatusBadRequest)
 		return
@@ -62,21 +61,14 @@ func (n *Node) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "Failed to get file from form", http.StatusBadRequest)
+		http.Error(w, "File not found in form", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	// Read file with size limit check
 	data, err := io.ReadAll(io.LimitReader(file, 10<<20))
-	if err != nil {
+	if err != nil || len(data) == 0 {
 		http.Error(w, "Failed to read file", http.StatusInternalServerError)
-		return
-	}
-
-	// Validate file size
-	if len(data) == 0 {
-		http.Error(w, "Empty file", http.StatusBadRequest)
 		return
 	}
 

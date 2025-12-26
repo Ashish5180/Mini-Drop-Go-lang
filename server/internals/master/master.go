@@ -59,13 +59,11 @@ func StartMaster(ctx context.Context, port string) {
 
 func (m *Master) registerNode(address string) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	m.Nodes[address] = &common.NodeInfo{
 		Address: address,
 		Status:  "active",
 	}
-
+	m.mutex.Unlock()
 }
 
 func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -93,8 +91,10 @@ func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
 	m.mutex.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "File registered successfully", "hash": fileInfo.Hash})
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "File registered",
+		"hash":    fileInfo.Hash,
+	})
 }
 
 func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +107,6 @@ func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
 
 	m.mutex.RLock()
 	fileInfo, exists := m.Files[hash]
-
 	m.mutex.RUnlock()
 
 	if !exists {

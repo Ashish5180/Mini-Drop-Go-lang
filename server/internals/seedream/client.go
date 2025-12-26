@@ -76,17 +76,13 @@ func GenerateImages(ctx context.Context, apiKeyOverride string, prompt string, i
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	// Reusable HTTP client with optimized settings
 	client := &http.Client{
 		Timeout: 90 * time.Second,
 		Transport: &http.Transport{
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			MaxConnsPerHost:       10,
-			IdleConnTimeout:       90 * time.Second,
-			DisableCompression:    false,
-			ForceAttemptHTTP2:     true,
-			ExpectContinueTimeout: 1 * time.Second,
+			MaxIdleConns:        50,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
 		},
 	}
 	resp, err := client.Do(httpReq)

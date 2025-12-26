@@ -31,11 +31,9 @@ type FileStorage struct {
 	cacheMu    sync.RWMutex
 }
 
+// GetFile retrieves file by hash (alias for RetrieveFile)
 func (fs *FileStorage) GetFile(hash string) ([]byte, error) {
-	fs.mu.RLock()
-	defer fs.mu.RUnlock()
-	filePath := filepath.Join(fs.StorageDir, hash)
-	return os.ReadFile(filePath)
+	return fs.RetrieveFile(hash)
 }
 
 func NewFileStorage(dir string) *FileStorage {
@@ -47,39 +45,38 @@ func NewFileStorage(dir string) *FileStorage {
 }
 
 func (fs *FileStorage) StoreFile(filename string, data []byte) (string, error) {
-	// Compute hash with pooled hasher for efficiency
+	// Compute hash with pooled hasher
 	hasher := hashPool.Get().(hash.Hash)
 	hasher.Reset()
 	hasher.Write(data)
 	hashStr := fmt.Sprintf("%x", hasher.Sum(nil))
 	hashPool.Put(hasher)
 
-	// Check cache first (fast path)
-	fs.cacheMu.RLock()
-	exists := fs.cache[hashStr]
-	fs.cacheMu.RUnlock()
+	filePath := filepath.Join(fs.StorageDir, hashStr)
 
-	if exists {
+	// Fast path: check cache first
+	fs.cacheMu.RLock()
+	if exists := fs.cache[hashStr]; exists {
+		fs.cacheMu.RUnlock()
 		return hashStr, nil
 	}
+	fs.cacheMu.RUnlock()
 
+	// Check and write with single lock
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	filePath := filepath.Join(fs.StorageDir, hashStr)
-
-	// Double-check file existence
 	if _, err := os.Stat(filePath); err == nil {
-		fs.updateCache(hashStr, true)
+		fs.setCached(hashStr, true)
 		return hashStr, nil
 	}
 
-	// Write file atomically
-	err := os.WriteFile(filePath, data, 0644)
-	if err == nil {
-		fs.updateCache(hashStr, true)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return hashStr, err
 	}
-	return hashStr, err
+
+	fs.setCached(hashStr, true)
+	return hashStr, nil
 }
 
 func (fs *FileStorage) RetrieveFile(hash string) ([]byte, error) {
@@ -92,16 +89,17 @@ func (fs *FileStorage) RetrieveFile(hash string) ([]byte, error) {
 func (fs *FileStorage) DeleteFile(hash string) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+
 	filePath := filepath.Join(fs.StorageDir, hash)
-	err := os.Remove(filePath)
-	if err == nil {
-		fs.updateCache(hash, false)
+	if err := os.Remove(filePath); err != nil {
+		return err
 	}
-	return err
+
+	fs.setCached(hash, false)
+	return nil
 }
 
 func (fs *FileStorage) FileExists(hash string) bool {
-	// Check cache first
 	fs.cacheMu.RLock()
 	exists, cached := fs.cache[hash]
 	fs.cacheMu.RUnlock()
@@ -110,19 +108,16 @@ func (fs *FileStorage) FileExists(hash string) bool {
 		return exists
 	}
 
-	// Check filesystem
-	fs.mu.RLock()
-	defer fs.mu.RUnlock()
 	filePath := filepath.Join(fs.StorageDir, hash)
 	_, err := os.Stat(filePath)
 	exists = err == nil
-	fs.updateCache(hash, exists)
+	fs.setCached(hash, exists)
 	return exists
 }
 
-// updateCache safely updates the file existence cache
-func (fs *FileStorage) updateCache(hash string, exists bool) {
+// setCached updates cache without lock (caller must hold lock or handle sync)
+func (fs *FileStorage) setCached(hash string, exists bool) {
 	fs.cacheMu.Lock()
-	defer fs.cacheMu.Unlock()
 	fs.cache[hash] = exists
+	fs.cacheMu.Unlock()
 }

@@ -1,91 +1,44 @@
-name: Gemini PR Review
-
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+name: Gemini Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    # Required permissions to read code and post comments
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
-      # 🔹 1. Checkout FULL history (CRITICAL FIX)
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 🔹 2. Build PR diff (reliable & exact)
-      - name: Build PR diff
-        run: |
-          git diff ${{ github.event.pull_request.base.sha }} > pr.diff
-
-      # 🔹 3. Debug diff (visible in logs)
-      - name: Debug PR diff
-        run: |
-          echo "===== PR DIFF START ====="
-          cat pr.diff
-          echo "===== PR DIFF END ====="
-
-      # 🔹 4. Guard: Skip Gemini if diff is empty
-      - name: Check diff size
-        run: |
-          if [ ! -s pr.diff ]; then
-            echo '{"result":"No meaningful code or configuration changes detected in this PR."}' > review.json
-            exit 0
-          fi
-
-      # 🔹 5. Gemini API call (strong prompt)
-      - name: Gemini Code Review
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          RESPONSE=$(curl -s \
-            -H "Content-Type: application/json" \
-            -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5:generateContent?key=$GEMINI_API_KEY" \
-            -d '{
-              "contents": [{
-                "parts": [{
-                  "text": "You are a senior software engineer and DevOps reviewer.\n\nReview the following GitHub Pull Request diff.\n\nInstructions:\n- Review code for bugs, edge cases, performance, and readability.\n- Review CI/CD or configuration changes for security, permissions, and best practices.\n- Always provide at least 3 concise bullet points of feedback.\n- Be clear, actionable, and professional.\n\nPull Request Diff:\n\n'"$(cat pr.diff)"'"
-                }]
-              }]
-            }')
-
-          echo "$RESPONSE" > review.json
-
-      # 🔹 6. Debug Gemini response (always visible)
-      - name: Debug Gemini response
-        run: |
-          echo "===== GEMINI RESPONSE ====="
-          cat review.json
-
-      # 🔹 7. Post comment on PR
-      - name: Post review comment
-        uses: actions/github-script@v7
+      - name: Gemini AI PR Review
+        uses: google/generative-ai-docs/actions/gemini-review@main
         with:
-          script: |
-            const fs = require("fs");
-
-            let body = "No feedback generated.";
-            try {
-              const review = JSON.parse(fs.readFileSync("review.json", "utf8"));
-              body =
-                review?.candidates?.[0]?.content?.parts?.[0]?.text ||
-                review?.result ||
-                body;
-            } catch (err) {
-              body = "Failed to parse Gemini response.";
-            }
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## 🤖 Gemini Automated Review\n\n${body}`
-            });
+          # Use the secret you created in the previous step
+          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          model: gemini-2.0-flash
+          review-level: detailed
+          # Custom Instructions to match your "Senior Engineer" requirement
+          custom-instructions: |
+            Act as a Senior Software Engineer. Your goal is to review the PR diff and provide actionable feedback.
+            
+            Objectives:
+            1. Review the current PR diff for logic errors, security flaws, and performance issues.
+            2. Leave short, concise inline comments (1-2 sentences) on changed lines.
+            3. Use emojis for categorization: 🚨 Critical, 🔒 Security, ⚡ Performance, ⚠️ Logic, ✨ Improvement.
+            4. Include a brief code example of the fix within your comment if applicable.
+            5. Provide a short summary of the overall code quality at the end.
+            
+            Rules:
+            - Focus only on the changed lines.
+            - Be specific and actionable.
+            - Maintain a professional, helpful tone.
+            - Do not approve or request changes; only leave a review comment.

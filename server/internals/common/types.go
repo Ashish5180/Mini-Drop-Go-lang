@@ -1,28 +1,13 @@
 package common
 
-import (
-	"errors"
-	"sync"
-)
+import "errors"
 
 var (
-	// Pre-computed error messages for efficiency
+	// Pre-computed errors for zero-allocation error returns
 	ErrHashRequired = errors.New("hash is required")
 	ErrSizeInvalid  = errors.New("size must be positive")
-	ErrNameRequired = errors.New("name is required")
-
-	// String interning pool for hash deduplication
-	hashInternPool = sync.Map{}
+	ErrHashInvalid  = errors.New("invalid hash format")
 )
-
-// InternHash returns a canonical representation of the hash string
-// to reduce memory usage when same hashes appear multiple times
-func InternHash(hash string) string {
-	if actual, loaded := hashInternPool.LoadOrStore(hash, hash); loaded {
-		return actual.(string)
-	}
-	return hash
-}
 
 type FileInfo struct {
 	Hash     string   `json:"hash"`
@@ -36,8 +21,8 @@ func (f *FileInfo) Validate() error {
 	if f.Hash == "" {
 		return ErrHashRequired
 	}
-	if len(f.Hash) != 32 { // MD5 hash is always 32 hex chars
-		return errors.New("invalid hash format")
+	if len(f.Hash) != 32 {
+		return ErrHashInvalid
 	}
 	if f.Size <= 0 {
 		return ErrSizeInvalid

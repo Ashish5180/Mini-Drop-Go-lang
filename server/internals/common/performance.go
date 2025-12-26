@@ -22,24 +22,18 @@ func NewPerformanceMetrics() *PerformanceMetrics {
 	}
 }
 
-// RecordRequest increments the request counter
-func (pm *PerformanceMetrics) RecordRequest() {
+// Record updates metrics atomically
+func (pm *PerformanceMetrics) Record(bytes int64, latencyMs int64, isError bool) {
 	pm.TotalRequests.Add(1)
-}
-
-// RecordBytes adds to the total bytes processed
-func (pm *PerformanceMetrics) RecordBytes(bytes int64) {
-	pm.TotalBytes.Add(bytes)
-}
-
-// RecordError increments the error counter
-func (pm *PerformanceMetrics) RecordError() {
-	pm.TotalErrors.Add(1)
-}
-
-// RecordLatency updates the average latency
-func (pm *PerformanceMetrics) RecordLatency(latencyMs int64) {
-	pm.AverageLatencyMs.Store(latencyMs)
+	if bytes > 0 {
+		pm.TotalBytes.Add(bytes)
+	}
+	if isError {
+		pm.TotalErrors.Add(1)
+	}
+	if latencyMs > 0 {
+		pm.AverageLatencyMs.Store(latencyMs)
+	}
 }
 
 // GetStats returns current statistics

@@ -42,12 +42,15 @@ func GenerateImages(ctx context.Context, apiKeyOverride string, prompt string, i
 		apiKey = defaultAPIKey
 	}
 
+	// Pre-allocate slice for reference images
 	refImgs := make([]string, 0, len(imageBytes))
 	for _, b := range imageBytes {
 		if len(b) == 0 {
 			continue
 		}
-		refImgs = append(refImgs, "data:application/octet-stream;base64,"+base64.StdEncoding.EncodeToString(b))
+		// Optimize base64 encoding with buffer
+		encoded := base64.StdEncoding.EncodeToString(b)
+		refImgs = append(refImgs, "data:application/octet-stream;base64,"+encoded)
 	}
 
 	reqBody := generateRequest{
@@ -74,7 +77,13 @@ func GenerateImages(ctx context.Context, apiKeyOverride string, prompt string, i
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 90 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        50,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
+		},
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {

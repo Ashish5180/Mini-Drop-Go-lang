@@ -9,6 +9,7 @@ import (
 	"mini-dropbox/internals/seedream"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type Master struct {
@@ -22,8 +23,8 @@ func StartMaster(ctx context.Context, port string) {
 
 	master := &Master{
 		Port:  port,
-		Files: make(map[string]*common.FileInfo),
-		Nodes: make(map[string]*common.NodeInfo),
+		Files: make(map[string]*common.FileInfo, 100), // Pre-allocate for efficiency
+		Nodes: make(map[string]*common.NodeInfo, 10),
 	}
 
 	// Regsiter known nodes
@@ -40,26 +41,29 @@ func StartMaster(ctx context.Context, port string) {
 	fmt.Printf("Starting master on port %s\n", port)
 
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go server.ListenAndServe()
 
 	// Wait for context cancellation
 	<-ctx.Done()
-	server.Shutdown(context.Background())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	server.Shutdown(shutdownCtx)
 }
 
 func (m *Master) registerNode(address string) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	m.Nodes[address] = &common.NodeInfo{
 		Address: address,
 		Status:  "active",
 	}
-
+	m.mutex.Unlock()
 }
 
 func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -72,12 +76,13 @@ func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	var fileInfo common.FileInfo
 
-	if fileInfo.Size == 0 {
-		http.Error(w, "Size is required", http.StatusBadRequest)
-		return
-	}
 	if err := json.NewDecoder(r.Body).Decode(&fileInfo); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := fileInfo.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -85,8 +90,11 @@ func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
 	m.Files[fileInfo.Hash] = &fileInfo
 	m.mutex.Unlock()
 
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "File %s registered successfully", fileInfo.Hash)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "File registered",
+		"hash":    fileInfo.Hash,
+	})
 }
 
 func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +107,6 @@ func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
 
 	m.mutex.RLock()
 	fileInfo, exists := m.Files[hash]
-
 	m.mutex.RUnlock()
 
 	if !exists {
@@ -125,9 +132,10 @@ func (m *Master) handleList(w http.ResponseWriter, r *http.Request) {
 
 // handleSeedreamGenerate:
 // POST multipart/form-data with fields:
-//  - prompt: string (required)
-//  - image1: file (optional)
-//  - image2: file (optional)
+//   - prompt: string (required)
+//   - image1: file (optional)
+//   - image2: file (optional)
+//
 // Responds with JSON containing job_id/images as returned by Seedream.
 func (m *Master) handleSeedreamGenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -143,17 +151,16 @@ func (m *Master) handleSeedreamGenerate(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "prompt is required", http.StatusBadRequest)
 		return
 	}
-	var images [][]byte
-	if f, _, err := r.FormFile("image1"); err == nil && f != nil {
-		defer f.Close()
-		if b, readErr := io.ReadAll(f); readErr == nil {
-			images = append(images, b)
-		}
-	}
-	if f, _, err := r.FormFile("image2"); err == nil && f != nil {
-		defer f.Close()
-		if b, readErr := io.ReadAll(f); readErr == nil {
-			images = append(images, b)
+	// Pre-allocate slice for images
+	images := make([][]byte, 0, 2)
+	// Use limited reader to prevent excessive memory usage
+	for _, imageName := range []string{"image1", "image2"} {
+		if f, _, err := r.FormFile(imageName); err == nil && f != nil {
+			defer f.Close()
+			// Limit to 10MB per image
+			if b, readErr := io.ReadAll(io.LimitReader(f, 10<<20)); readErr == nil && len(b) > 0 {
+				images = append(images, b)
+			}
 		}
 	}
 	ctx := r.Context()

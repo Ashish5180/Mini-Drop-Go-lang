@@ -23,8 +23,8 @@ func StartMaster(ctx context.Context, port string) {
 
 	master := &Master{
 		Port:  port,
-		Files: make(map[string]*common.FileInfo),
-		Nodes: make(map[string]*common.NodeInfo),
+		Files: make(map[string]*common.FileInfo, 100), // Pre-allocate for efficiency
+		Nodes: make(map[string]*common.NodeInfo, 10),
 	}
 
 	// Regsiter known nodes
@@ -152,17 +152,16 @@ func (m *Master) handleSeedreamGenerate(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "prompt is required", http.StatusBadRequest)
 		return
 	}
-	var images [][]byte
-	if f, _, err := r.FormFile("image1"); err == nil && f != nil {
-		defer f.Close()
-		if b, readErr := io.ReadAll(f); readErr == nil {
-			images = append(images, b)
-		}
-	}
-	if f, _, err := r.FormFile("image2"); err == nil && f != nil {
-		defer f.Close()
-		if b, readErr := io.ReadAll(f); readErr == nil {
-			images = append(images, b)
+	// Pre-allocate slice for images
+	images := make([][]byte, 0, 2)
+	// Use limited reader to prevent excessive memory usage
+	for _, imageName := range []string{"image1", "image2"} {
+		if f, _, err := r.FormFile(imageName); err == nil && f != nil {
+			defer f.Close()
+			// Limit to 10MB per image
+			if b, readErr := io.ReadAll(io.LimitReader(f, 10<<20)); readErr == nil && len(b) > 0 {
+				images = append(images, b)
+			}
 		}
 	}
 	ctx := r.Context()

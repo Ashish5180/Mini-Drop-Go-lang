@@ -11,19 +11,33 @@ echo ""
 
 # Test Master Node health (port 9000)
 echo "🎯 Testing Master Node health (port 9000)..."
-curl -X GET "http://localhost:9000/health" 2>/dev/null || echo "❌ Master Node not responding"
+if curl -f -s -m 2 -X GET "http://localhost:9000/health" 2>/dev/null; then
+    echo " - ✅ Master Node responding"
+else
+    echo " - ⚠️  Master Node health endpoint not implemented"
+fi
 echo ""
 echo ""
 
 # Test Storage Node 8001 health
 echo "📦 Testing Storage Node 8001 health..."
-curl -X GET "http://localhost:8001/health"
+if curl -f -s -m 2 -X GET "http://localhost:8001/health"; then
+    echo ""
+    echo " - ✅ Storage Node 8001 healthy"
+else
+    echo " - ❌ Storage Node 8001 not responding"
+fi
 echo ""
 echo ""
 
 # Test Storage Node 8002 health
 echo "📦 Testing Storage Node 8002 health..."
-curl -X GET "http://localhost:8002/health"
+if curl -f -s -m 2 -X GET "http://localhost:8002/health"; then
+    echo ""
+    echo " - ✅ Storage Node 8002 healthy"
+else
+    echo " - ❌ Storage Node 8002 not responding"
+fi
 echo ""
 echo ""
 

@@ -9,6 +9,7 @@ import (
 	"mini-dropbox/internals/seedream"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type Master struct {
@@ -40,15 +41,20 @@ func StartMaster(ctx context.Context, port string) {
 	fmt.Printf("Starting master on port %s\n", port)
 
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go server.ListenAndServe()
 
 	// Wait for context cancellation
 	<-ctx.Done()
-	server.Shutdown(context.Background())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	server.Shutdown(shutdownCtx)
 }
 
 func (m *Master) registerNode(address string) {
@@ -72,12 +78,13 @@ func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	var fileInfo common.FileInfo
 
-	if fileInfo.Size == 0 {
-		http.Error(w, "Size is required", http.StatusBadRequest)
-		return
-	}
 	if err := json.NewDecoder(r.Body).Decode(&fileInfo); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := fileInfo.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -85,8 +92,9 @@ func (m *Master) handleRegister(w http.ResponseWriter, r *http.Request) {
 	m.Files[fileInfo.Hash] = &fileInfo
 	m.mutex.Unlock()
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "File %s registered successfully", fileInfo.Hash)
+	json.NewEncoder(w).Encode(map[string]string{"message": "File registered successfully", "hash": fileInfo.Hash})
 }
 
 func (m *Master) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -125,9 +133,10 @@ func (m *Master) handleList(w http.ResponseWriter, r *http.Request) {
 
 // handleSeedreamGenerate:
 // POST multipart/form-data with fields:
-//  - prompt: string (required)
-//  - image1: file (optional)
-//  - image2: file (optional)
+//   - prompt: string (required)
+//   - image1: file (optional)
+//   - image2: file (optional)
+//
 // Responds with JSON containing job_id/images as returned by Seedream.
 func (m *Master) handleSeedreamGenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

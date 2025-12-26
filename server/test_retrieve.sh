@@ -3,6 +3,8 @@
 # Test script for Mini-Dropbox file retrieval
 # This script tests the file retrieval functionality
 
+set -e  # Exit on error
+
 echo "🔍 Testing Mini-Dropbox File Retrieval"
 echo "====================================="
 
@@ -22,12 +24,11 @@ echo ""
 
 # Test retrieval from Node 8001
 echo "📥 Testing retrieval from Node 8001..."
-curl -X GET "http://localhost:8001/retrieve?hash=$HASH" -o retrieved_file_8001.txt
-
-if [ $? -eq 0 ]; then
+if curl -f -s -X GET "http://localhost:8001/retrieve?hash=$HASH" -o retrieved_file_8001.txt; then
     echo "✅ File retrieved from Node 8001: retrieved_file_8001.txt"
     echo "File content:"
     cat retrieved_file_8001.txt
+    echo ""
 else
     echo "❌ Failed to retrieve file from Node 8001"
 fi
@@ -37,17 +38,17 @@ echo ""
 
 # Test retrieval from Node 8002
 echo "📥 Testing retrieval from Node 8002..."
-curl -X GET "http://localhost:8001/retrieve?hash=$HASH" -o retrieved_file_8002.txt
-
-if [ $? -eq 0 ]; then
+if curl -f -s -X GET "http://localhost:8002/retrieve?hash=$HASH" -o retrieved_file_8002.txt; then
     echo "✅ File retrieved from Node 8002: retrieved_file_8002.txt"
     echo "File content:"
     cat retrieved_file_8002.txt
+    echo ""
 else
     echo "❌ Failed to retrieve file from Node 8002"
 fi
 
 echo ""
+echo "✅ Retrieval testing completed!"
 echo "🧹 Cleaning up retrieved files..."
 rm -f retrieved_file_8001.txt retrieved_file_8002.txt
 

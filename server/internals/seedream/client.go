@@ -74,7 +74,12 @@ func GenerateImages(ctx context.Context, apiKeyOverride string, prompt string, i
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 90 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {

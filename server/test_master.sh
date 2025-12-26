@@ -3,6 +3,8 @@
 # Test script for Mini-Dropbox Master Node
 # This script tests the master node API endpoints
 
+set -e  # Exit on error
+
 echo "🎯 Testing Mini-Dropbox Master Node"
 echo "=================================="
 
@@ -13,40 +15,44 @@ echo ""
 
 # Test 1: List all files (should be empty initially)
 echo "📋 Test 1: Listing all files (should be empty initially)..."
-curl -X GET "$MASTER_URL/list"
+curl -s -w "\n" -X GET "$MASTER_URL/list" | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X GET "$MASTER_URL/list"
 echo ""
 echo ""
 
 # Test 2: Get file by hash (should return 404 for non-existent hash)
 echo "🔍 Test 2: Getting non-existent file..."
-curl -X GET "$MASTER_URL/get?hash=nonexistent123"
+curl -s -w "\n" -X GET "$MASTER_URL/get?hash=nonexistent123"
 echo ""
 echo ""
 
 # Test 3: Register a file (simulate file registration)
 echo "📝 Test 3: Registering a sample file..."
-curl -X POST "$MASTER_URL/register" \
+curl -s -w "\n" -X POST "$MASTER_URL/register" \
   -H "Content-Type: application/json" \
   -d '{
     "hash": "test123hash456",
     "name": "sample.txt",
     "size": 1024,
     "replicas": ["8001", "8002"]
-  }'
+  }' | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X POST "$MASTER_URL/register" \
+  -H "Content-Type: application/json" \
+  -d '{"hash":"test123hash456","name":"sample.txt","size":1024,"replicas":["8001","8002"]}'
 echo ""
 echo ""
 
 # Test 4: List all files again (should show the registered file)
 echo "📋 Test 4: Listing all files (should show registered file)..."
-curl -X GET "$MASTER_URL/list"
+curl -s -w "\n" -X GET "$MASTER_URL/list" | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X GET "$MASTER_URL/list"
 echo ""
 echo ""
 
 # Test 5: Get the registered file by hash
 echo "🔍 Test 5: Getting registered file by hash..."
-curl -X GET "$MASTER_URL/get?hash=test123hash456"
+curl -s -w "\n" -X GET "$MASTER_URL/get?hash=test123hash456" | python3 -m json.tool 2>/dev/null || curl -s -w "\n" -X GET "$MASTER_URL/get?hash=test123hash456"
 echo ""
 echo ""
+
+echo "✅ Master node testing completed!"
 
 echo "✅ Master Node testing completed!"
 echo ""

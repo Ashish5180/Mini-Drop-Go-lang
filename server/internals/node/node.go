@@ -9,6 +9,7 @@ import (
 	"mini-dropbox/internals/storage"
 	"net/http"
 	"path/filepath"
+	"time"
 )
 
 type Node struct {
@@ -28,18 +29,23 @@ func StartNode(ctx context.Context, port string) {
 	mux.HandleFunc("/health", node.handleHealth)
 
 	fmt.Printf("Node starting on port %s\n", port)
-	
+
 	// Use context for graceful shutdown
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
-	
+
 	go server.ListenAndServe()
-	
+
 	// Wait for context cancellation
 	<-ctx.Done()
-	server.Shutdown(context.Background())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	server.Shutdown(shutdownCtx)
 }
 
 func (n *Node) handleUpload(w http.ResponseWriter, r *http.Request) {

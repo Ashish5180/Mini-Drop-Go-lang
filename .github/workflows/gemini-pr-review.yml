@@ -2,29 +2,56 @@ name: Gemini PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
 
 jobs:
   review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Get changed files
-        id: changed-files
+        id: changed
         uses: tj-actions/changed-files@v41
 
-      - name: Gemini PR Review
-        uses: google/generative-ai-docs/actions/gemini-review@main
+      - name: Build diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }} > pr.diff
+
+      - name: Gemini Code Review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          RESPONSE=$(curl -s \
+            -H "Content-Type: application/json" \
+            -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GEMINI_API_KEY" \
+            -d '{
+              "contents": [{
+                "parts": [{
+                  "text": "You are a senior software engineer. Review the following PR diff and suggest bugs, improvements, and best practices:\n\n'"$(cat pr.diff)"'"
+                }]
+              }]
+            }')
+
+          echo "$RESPONSE" > review.json
+
+      - name: Post review comment
+        uses: actions/github-script@v7
         with:
-          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          model: gemini-2.0-flash-exp
-          review-level: detailed
+          script: |
+            const fs = require("fs");
+            const review = JSON.parse(fs.readFileSync("review.json", "utf8"));
+            const text =
+              review?.candidates?.[0]?.content?.parts?.[0]?.text
+              || "No feedback generated.";
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🤖 Gemini Automated Review\n\n${text}`
+            });

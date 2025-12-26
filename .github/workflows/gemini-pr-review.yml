@@ -4,7 +4,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  
+
 on:
   pull_request:
     types: [opened, synchronize]
@@ -17,14 +17,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get changed files
-        id: changed
-        uses: tj-actions/changed-files@v41
-
-      - name: Build diff
+      - name: Build PR diff
         run: |
           git fetch origin ${{ github.base_ref }}
           git diff origin/${{ github.base_ref }} > pr.diff
+
+      # 🔍 Guard: stop if diff is empty
+      - name: Check diff size
+        run: |
+          if [ ! -s pr.diff ]; then
+            echo '{"result":"No meaningful diff to review."}' > review.json
+            exit 0
+          fi
 
       - name: Gemini Code Review
         env:
@@ -37,26 +41,37 @@ jobs:
             -d '{
               "contents": [{
                 "parts": [{
-                  "text": "You are a senior software engineer. Review the following PR diff and suggest bugs, improvements, and best practices:\n\n'"$(cat pr.diff)"'"
+                  "text": "You are a senior software engineer and DevOps reviewer.\n\nReview the following GitHub Pull Request diff.\n\nInstructions:\n- If code changes exist, review for bugs, edge cases, performance, and readability.\n- If CI/CD or configuration files exist, review for security, permissions, best practices, and maintainability.\n- Always provide at least 3 bullet points of feedback.\n- Be concise, clear, and actionable.\n\nPR Diff:\n\n'"$(cat pr.diff)"'"
                 }]
               }]
             }')
 
           echo "$RESPONSE" > review.json
 
+      # 🧪 Optional but recommended for debugging
+      - name: Debug Gemini response
+        run: cat review.json
+
       - name: Post review comment
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require("fs");
-            const review = JSON.parse(fs.readFileSync("review.json", "utf8"));
-            const text =
-              review?.candidates?.[0]?.content?.parts?.[0]?.text
-              || "No feedback generated.";
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            let body = "No feedback generated.";
+            try {
+              const review = JSON.parse(fs.readFileSync("review.json", "utf8"));
+              body =
+                review?.candidates?.[0]?.content?.parts?.[0]?.text
+                || review?.result
+                || body;
+            } catch (e) {
+              body = "Failed to parse Gemini response.";
+            }
+
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🤖 Gemini Automated Review\n\n${text}`
+              issue_number: context.issue.number,
+              body: `## 🤖 Gemini Automated Review\n\n${body}`
             });
